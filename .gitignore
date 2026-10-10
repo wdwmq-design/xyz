@@ -1,0 +1,8 @@
+*.asv
+*.autosave
+~$*
+
+data/_old_backup/
+data/_swap_backup/
+data/results/last_frames/
+debris-tracker-web/

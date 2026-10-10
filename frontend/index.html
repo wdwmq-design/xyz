@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Debris Tracker - Mission Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="desktop">
+
+  <!-- ===== Connection ===== -->
+  <section class="window" id="w-conn" style="left:16px; top:16px; width:350px">
+    <div class="titlebar"><span class="ttl">Connection</span><span class="btns"><button class="tb min" title="Minimize">_</button><button class="tb close" title="Close">x</button></span></div>
+    <div class="body">
+      <div><span class="led demo" id="led"></span><b id="modeText">DEMO MODE: cached results</b></div>
+      <p class="note" id="modeHelp">Showing saved files from the repository. MATLAB is not running. Connect to your PC to run it live.</p>
+      <label for="apiUrl">Server URL (your tunnel address)</label>
+      <input class="field" id="apiUrl" placeholder="https://something.trycloudflare.com" autocomplete="off" spellcheck="false">
+      <label for="apiToken">Access token</label>
+      <input class="field" id="apiToken" type="password" placeholder="secret from your server console" autocomplete="off">
+      <div class="row">
+        <button class="btn" id="btnConnect">Connect</button>
+        <button class="btn" id="btnDemo">Use demo data</button>
+      </div>
+      <p class="note warn" id="connMsg" hidden></p>
+    </div>
+  </section>
+
+  <!-- ===== Run MATLAB ===== -->
+  <section class="window" id="w-run" style="left:16px; top:268px; width:350px">
+    <div class="titlebar"><span class="ttl">Run MATLAB</span><span class="btns"><button class="tb min">_</button><button class="tb close">x</button></span></div>
+    <div class="body">
+      <div class="row" style="margin-top:0">
+        <button class="btn" id="btnSample" disabled>Run on sample data</button>
+      </div>
+      <fieldset>
+        <legend>Or your own frames</legend>
+        <input type="file" id="files" accept=".bmp,image/bmp" multiple>
+        <p class="note">3 to 12 BMP files, same size, time order (name them frame_1.bmp, frame_2.bmp ...). Ground truth is not available for uploads, so no accuracy scores are computed.</p>
+        <div class="row"><button class="btn" id="btnUpload" disabled>Run on uploaded frames</button></div>
+      </fieldset>
+      <div class="progress" id="progress"><div class="bar"></div></div>
+      <div id="runState" class="note">Idle.</div>
+      <pre class="log" id="log">(MATLAB output appears here)</pre>
+    </div>
+  </section>
+
+  <!-- ===== Detections ===== -->
+  <section class="window" id="w-detect" style="left:384px; top:16px; width:540px">
+    <div class="titlebar"><span class="ttl">Detections</span><span class="btns"><button class="tb min">_</button><button class="tb close">x</button></span></div>
+    <div class="body">
+      <div class="row" style="margin:0 0 6px">
+        <button class="btn" id="prevF">&lt;</button>
+        <b id="frameLbl">Frame 1 / 1</b>
+        <button class="btn" id="nextF">&gt;</button>
+        <span class="note" style="margin:0 0 0 auto" id="detSummary"></span>
+      </div>
+      <div class="cv-wrap"><canvas id="cvDet" width="646" height="486"></canvas></div>
+      <p class="note">
+        <span class="sw" style="background:#ff2020"></span>debris candidate (thick)
+        <span class="sw" style="background:#33ff33"></span>dashed / long streak
+        <span class="sw" style="background:#ff4dff"></span>artifact / fixed
+        <span class="sw" style="background:#33e6ff"></span>compact
+        <span class="sw" style="background:#ffcc33"></span>unknown
+      </p>
+      <div class="tablewrap sunken"><table id="tblDet"></table></div>
+    </div>
+  </section>
+
+  <!-- ===== Tracks ===== -->
+  <section class="window" id="w-tracks" style="left:940px; top:16px; width:540px">
+    <div class="titlebar"><span class="ttl">Tracks and prediction</span><span class="btns"><button class="tb min">_</button><button class="tb close">x</button></span></div>
+    <div class="body">
+      <div class="cv-wrap"><canvas id="cvTrk" width="646" height="486"></canvas></div>
+      <p class="note">
+        white line = Kalman track; circle = measured, square = dead-reckoned (no detection);
+        <span style="color:#806000"><b>yellow dashed</b></span> = Kalman prediction with 3&sigma; ellipses;
+        <span style="color:#a000a0"><b>magenta</b></span> = PINN prediction. Dot color = frame (blue first, yellow last). Positions are in image pixels.
+      </p>
+      <div class="tablewrap sunken"><table id="tblTrk"></table></div>
+    </div>
+  </section>
+
+  <!-- ===== Blink ===== -->
+  <section class="window" id="w-blink" style="left:16px; top:800px; width:350px">
+    <div class="titlebar"><span class="ttl">Blink comparator</span><span class="btns"><button class="tb min">_</button><button class="tb close">x</button></span></div>
+    <div class="body">
+      <div class="cv-wrap"><img class="blink" id="blinkImg" alt="blink comparator animation"></div>
+      <p class="note" id="blinkNote"></p>
+    </div>
+  </section>
+
+  <!-- ===== Parameters + metrics ===== -->
+  <section class="window" id="w-params" style="left:384px; top:760px; width:540px">
+    <div class="titlebar"><span class="ttl">Parameters and metrics</span><span class="btns"><button class="tb min">_</button><button class="tb close">x</button></span></div>
+    <div class="body">
+      <div id="runInfo" class="note" style="margin-top:0"></div>
+      <h4 style="margin:10px 0 4px">Per-frame detection score</h4>
+      <div class="sunken"><table id="tblMetrics"></table></div>
+      <h4 style="margin:10px 0 4px">Thresholds per frame</h4>
+      <div class="sunken"><table id="tblThr"></table></div>
+      <h4 style="margin:10px 0 4px">Detection parameters</h4>
+      <div class="tablewrap sunken"><table id="tblCfg"></table></div>
+      <h4 style="margin:10px 0 4px">Tracking parameters</h4>
+      <div class="tablewrap sunken"><table id="tblTc"></table></div>
+    </div>
+  </section>
+
+  <!-- ===== Status / honesty ===== -->
+  <section class="window" id="w-status" style="left:940px; top:700px; width:540px">
+    <div class="titlebar"><span class="ttl">What is built (and what is not)</span><span class="btns"><button class="tb min">_</button><button class="tb close">x</button></span></div>
+    <div class="body">
+      <div class="sunken"><table>
+        <tr><th>Component</th><th>Status</th></tr>
+        <tr><td>Median background, MAD noise map, matched filter, connected components</td><td class="tag-b">Built</td></tr>
+        <tr><td>Thresholding: Otsu + k&sigma; floor + 8&sigma; cap</td><td class="tag-p">Hybrid</td></tr>
+        <tr><td>Distractor classification (cosmic ray, dashed, long, stationary)</td><td class="tag-p">Partial; meteor removed only by tracker</td></tr>
+        <tr><td>Kalman filter, gating, dead reckoning</td><td class="tag-b">Built (pixel space, no orbit)</td></tr>
+        <tr><td>PINN trajectory</td><td class="tag-p">Hybrid: line + net, smoothness prior</td></tr>
+        <tr><td>Accuracy numbers</td><td class="tag-p">In-sample on simulated debris</td></tr>
+        <tr><td>Real debris / Kaggle images</td><td class="tag-n">Not validated</td></tr>
+        <tr><td>Shift-and-stack, TLE matching, tumble period, range/altitude, size estimate</td><td class="tag-n">Not built</td></tr>
+      </table></div>
+      <p class="note">Star fields are real images; the debris, noise defects and distractors are simulated. Ground truth is used only for scoring, never for detection.</p>
+    </div>
+  </section>
+
+</div>
+
+<div id="taskbar">
+  <button class="btn start" id="btnStart">Start</button>
+  <div id="taskbtns"></div>
+  <div id="tray"><span class="led demo" id="trayLed"></span><span id="trayMode">DEMO</span><span id="clock"></span></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

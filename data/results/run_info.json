@@ -1,0 +1,17 @@
+{
+  "mode": "upload",
+  "ok": false,
+  "finished": "2026-10-10T08:33:41",
+  "nFrames": 3,
+  "groundTruthUsed": false,
+  "fresh": [
+    "detections.json",
+    "detections.csv",
+    "detection_preview.png"
+  ],
+  "stale": [
+    "tracks.json",
+    "tracks.csv",
+    "tracking_preview.png"
+  ]
+}
